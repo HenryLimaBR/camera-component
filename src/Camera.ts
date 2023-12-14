@@ -43,7 +43,7 @@ export default class Camera {
   public getCameraComponent() {
     // * Base Container
     const container = document.createElement('div')
-    container.className = 'relative w-full h-full bg-black flex justify-center items-center flex-column'
+    container.className = 'relative w-full h-full bg-black flex justify-center items-center flex-column text-zinc-100'
 
     // * Video Component
     const video = document.createElement('video')
@@ -59,13 +59,13 @@ export default class Camera {
 
     // * Camera REC Counter
     const cameraRECCounter = document.createElement('p')
-    cameraRECCounter.className = 'p-2 text-zinc-100 text-lg'
+    cameraRECCounter.className = 'absolute left-0 ml-4 text-xl'
     controlContainer.appendChild(cameraRECCounter)
-    cameraRECCounter.innerText = `00:00:00`
+    cameraRECCounter.innerText = `00m00s`
 
     // * Camera REC Button
     const cameraRECButton = document.createElement('button')
-    cameraRECButton.className = 'p-2 text-zinc-100'
+    cameraRECButton.className = 'p-2'
     controlContainer.appendChild(cameraRECButton)
     const cameraRECIcon = document.createElement('i')
     cameraRECIcon.className = 'ph-thin ph-record text-6xl'
@@ -76,7 +76,7 @@ export default class Camera {
     cameraChangeButton.className = 'absolute p-2 right-0 mr-4 text-4xl'
     controlContainer.appendChild(cameraChangeButton)
     const cameraChangeIcon = document.createElement('i')
-    cameraChangeIcon.className = 'ph-thin ph-swap text-zinc-100'
+    cameraChangeIcon.className = 'ph-thin ph-swap'
     cameraChangeButton.appendChild(cameraChangeIcon)
 
     const selectVideo = async (front = true) => {
@@ -98,12 +98,14 @@ export default class Camera {
       selectVideo(!this.frontCamera)
     })
 
+    let counterInterval = 0
+
     cameraRECButton.addEventListener('touchstart', () => {
       if (!this.mediaStream) {
         return
       }
 
-      cameraRECButton.classList.add('text-red-400')
+      cameraRECButton.classList.add('text-red-600')
 
       this.recorder = new MediaRecorder(this.mediaStream, {
         audioBitsPerSecond: 128000,
@@ -114,32 +116,51 @@ export default class Camera {
       this.recorder.addEventListener('dataavailable', (blob) => {
         this.videoData.push(blob.data)
       })
+      let time = 0
+      
+      this.recorder.addEventListener('start', () => {
+        this.recording = true
+        cameraChangeButton.disabled = this.recording
+        
+        counterInterval = setInterval(() => {
+          time += 250
+          cameraRECCounter.innerText = this.parseMillisecondsToMmSSMs(time)
+        }, 250)
+      })
+      
+      this.recorder.start() // set param to limit each chunk of video to match the time in ms
 
-      this.recording = true
-      this.recorder.start()
     })
 
     cameraRECButton.addEventListener('touchend', () => {
       this.recorder.addEventListener('stop', () => {
+        this.recording = false
+        cameraChangeButton.disabled = this.recording
+        cameraRECButton.classList.remove('text-red-600')
+
+        clearInterval(counterInterval)
+        cameraRECCounter.innerText = '00m00s'
+
         const blob = new Blob(this.videoData, { type: 'video/webm' })
         this.videoData = []
         const url = URL.createObjectURL(blob)
         const dl = document.createElement('a')
-        dl.download = `v-${new Date().toDateString().replace('/', '')}-${new Date()
-          .toTimeString()
-          .replace(':', '')}.webm`
+        dl.download = `video-${Date.now()}.webm`
         dl.href = url
         dl.click()
       })
 
-      this.recording = false
       this.recorder.stop()
-
-      cameraRECButton.classList.remove('text-red-600')
     })
 
     selectVideo(true)
 
     return container
+  }
+
+  private parseMillisecondsToMmSSMs(milliseconds: number) {
+    const minutes = Math.floor(milliseconds / 1000 / 60)
+    const seconds = Math.floor((milliseconds / 1000) % 60)
+    return `${minutes.toString().padStart(2, '0')}m${seconds.toString().padStart(2, '0')}s`
   }
 }
